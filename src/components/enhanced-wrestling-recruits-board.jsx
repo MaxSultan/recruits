@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { DndContext, DragOverlay, closestCorners } from '@dnd-kit/core'
+import { DndContext, DragOverlay, closestCorners, useDroppable, useDraggable } from '@dnd-kit/core'
 import { SortableContext, arrayMove } from '@dnd-kit/sortable'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -13,22 +13,38 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Archive } from 'lucide-react'
 
-const Column = ({ title, recruits, onDragStart }) => (
-  <Card className="w-72 bg-gray-100">
+const Column = ({ title, recruits }) => {
+  const {isOver, setNodeRef} = useDroppable({
+    id: title,
+  });
+  const style = {
+    color: isOver ? 'green' : undefined,
+    borderStyle: isOver ? 'dashed': 'solid',
+  };
+  return (
+  <Card className="w-72 bg-gray-100" ref={setNodeRef} style={style}>
     <CardContent className="p-2">
       <h3 className="font-bold mb-2">{title}</h3>
       <SortableContext items={recruits}>
         {recruits.map((recruit) => (
-          <RecruitCard key={recruit.id} recruit={recruit} onDragStart={onDragStart} />
+          <RecruitCard key={recruit.id} recruit={recruit} />
         ))}
       </SortableContext>
     </CardContent>
   </Card>
 )
+}
 
-const RecruitCard = ({ recruit, onDragStart, onArchive }) => {
+const RecruitCard = ({ recruit, onArchive }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [notes, setNotes] = useState(recruit.notes)
+
+  const {attributes, listeners, setNodeRef, transform} = useDraggable({
+    id: recruit.name,
+  });
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  } : undefined;
 
   const handleArchive = () => {
     onArchive(recruit.id)
@@ -39,7 +55,8 @@ const RecruitCard = ({ recruit, onDragStart, onArchive }) => {
     <Card
       className="mb-2 cursor-move"
       onClick={() => setIsDialogOpen(true)}
-      onDragStart={() => onDragStart(recruit)}>
+      ref={setNodeRef} style={style} {...listeners} {...attributes}
+      >
       <CardContent className="p-2">
         <h4 className="font-semibold">{recruit.name}</h4>
         <p className="text-sm">Weight: {recruit.projectedWeight}</p>
@@ -116,21 +133,20 @@ export function EnhancedWrestlingRecruitsBoard() {
   }, [recruits])
 
   const handleDragStart = (recruit) => {
-    setActiveRecruit(recruit);
+    const activeRecruit = recruits.find(r => r.id === recruit.active.id)
+    setActiveRecruit(activeRecruit);
     console.log('drag start', recruit)
   }
 
   const handleDragEnd = (event) => {
     const { active, over } = event
 
-    if (active.id !== over.id) {
+    if (!activeRecruit.id.includes(over.id)) {
+      console.log('setting new recruits')
       setRecruits((recruits) => {
-        const oldIndex = recruits.findIndex((r) => r.id === active.id)
-        const newIndex = recruits.findIndex((r) => r.id === over.id)
-
-        const updatedRecruits = arrayMove(recruits, oldIndex, newIndex)
-        updatedRecruits[newIndex] = { ...updatedRecruits[newIndex], status: over.data.current.status }
-
+        
+        const updatedRecruits = [ ...recruits.filter(r => r.id !== activeRecruit.id), {...activeRecruit, status: over.id }]
+        console.log(updatedRecruits)
         return updatedRecruits
       })
     }
@@ -142,7 +158,7 @@ export function EnhancedWrestlingRecruitsBoard() {
     if (newRecruit.name && newRecruit.projectedWeight && newRecruit.priority) {
       setRecruits([...recruits, {
         ...newRecruit,
-        id: Date.now().toString(),
+        id: newRecruit.name,
         status: 'Prospect'
       }])
       setIsAddRecruitOpen(false)
@@ -179,7 +195,7 @@ export function EnhancedWrestlingRecruitsBoard() {
       return recruit.status === 'Archived'
     })
     .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'name') return a.name?.localeCompare(b.name);
       if (sortBy === 'weight') return parseInt(a.projectedWeight) - parseInt(b.projectedWeight);
       if (sortBy === 'priority') {
         const priorityOrder = { High: 3, Medium: 2, Low: 1 }
@@ -187,6 +203,8 @@ export function EnhancedWrestlingRecruitsBoard() {
       }
       return 0
     })
+
+    console.log(filteredRecruits)
 
   const columns = ['Prospect', 'Contacted', 'Applied', 'Visited', 'Committed']
 
@@ -237,7 +255,7 @@ export function EnhancedWrestlingRecruitsBoard() {
   }
 
   return (
-    (<DndContext onDragEnd={handleDragEnd} collisionDetection={closestCorners}>
+    (<DndContext onDragEnd={handleDragEnd} collisionDetection={closestCorners} onDragStart={handleDragStart}>
       <div className="p-4">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Wrestling Recruits Board</h1>
@@ -277,7 +295,7 @@ export function EnhancedWrestlingRecruitsBoard() {
               key={column}
               title={column}
               recruits={filteredRecruits.filter((r) => r.status === column)}
-              onDragStart={handleDragStart} />
+               />
           ))}
         </div>
         <Card className="w-full bg-gray-100">
@@ -291,7 +309,6 @@ export function EnhancedWrestlingRecruitsBoard() {
                     <RecruitCard
                       key={recruit.id}
                       recruit={recruit}
-                      onDragStart={handleDragStart}
                       onArchive={handleArchive} />
                   ))}
               </SortableContext>
