@@ -261,9 +261,6 @@ export function EnhancedWrestlingRecruitsBoard() {
           <h1 className="text-2xl font-bold">Wrestling Recruits Board</h1>
           <div className="flex gap-2">
             <Button onClick={() => setIsAddRecruitOpen(true)}>Add Recruit</Button>
-            <Link href="/team-roster">
-              <Button variant="outline">View Team Roster</Button>
-            </Link>
             <Button onClick={handleLogout}>Logout</Button>
           </div>
         </div>
