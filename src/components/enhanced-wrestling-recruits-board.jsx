@@ -1,6 +1,5 @@
 'use client';
 import React, { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { DndContext, DragOverlay, closestCorners, useDroppable, useDraggable } from '@dnd-kit/core'
 import { SortableContext, arrayMove } from '@dnd-kit/sortable'
 import { Card, CardContent } from '@/components/ui/card'
@@ -12,6 +11,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Archive } from 'lucide-react'
+import { createClient } from '@supabase/supabase-js';
+
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 const Column = ({ title, recruits }) => {
   const {isOver, setNodeRef} = useDroppable({
@@ -27,7 +33,7 @@ const Column = ({ title, recruits }) => {
       <h3 className="font-bold mb-2">{title}</h3>
       <SortableContext items={recruits}>
         {recruits.map((recruit) => (
-          <RecruitCard key={recruit.id} recruit={recruit} />
+          <RecruitCard key={recruit.primaryKey} recruit={recruit} />
         ))}
       </SortableContext>
     </CardContent>
@@ -40,29 +46,30 @@ const RecruitCard = ({ recruit, onArchive }) => {
   const [notes, setNotes] = useState(recruit.notes)
 
   const {attributes, listeners, setNodeRef, transform} = useDraggable({
-    id: recruit.name,
+    id: recruit.primaryKey,
   });
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;
 
   const handleArchive = () => {
-    onArchive(recruit.id)
+    onArchive(recruit.primaryKey)
     setIsDialogOpen(false)
   }
 
   return (<>
     <Card
       className="mb-2 cursor-move"
-      onClick={() => setIsDialogOpen(true)}
       ref={setNodeRef} style={style} {...listeners} {...attributes}
       >
       <CardContent className="p-2">
         <h4 className="font-semibold">{recruit.name}</h4>
-        <p className="text-sm">Weight: {recruit.projectedWeight}</p>
+        <p className="text-sm">Weight: {recruit.projectedWeightClass}</p>
         <p className="text-sm">Priority: {recruit.priority}</p>
+        
       </CardContent>
     </Card>
+    <Button onClick={() => setIsDialogOpen(true)}>View</Button>
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogContent>
         <DialogHeader>
@@ -71,7 +78,7 @@ const RecruitCard = ({ recruit, onArchive }) => {
         <div className="grid gap-4">
           <div>
             <h5 className="font-semibold">Projected Weight:</h5>
-            <p>{recruit.projectedWeight}</p>
+            <p>{recruit.projectedWeightClass}</p>
           </div>
           <div>
             <h5 className="font-semibold">Priority:</h5>
@@ -79,15 +86,11 @@ const RecruitCard = ({ recruit, onArchive }) => {
           </div>
           <div>
             <h5 className="font-semibold">High School Record:</h5>
-            <p>{recruit.highSchoolRecord}</p>
+            <p>{recruit.wins}-{recruit.losses}</p>
           </div>
           <div>
             <h5 className="font-semibold">State Placements:</h5>
-            <p>{recruit.statePlacements}</p>
-          </div>
-          <div>
-            <h5 className="font-semibold">Other Notable Placements:</h5>
-            <p>{recruit.otherPlacements}</p>
+            <p>{recruit.previousYearsStatePlacement}</p>
           </div>
           <div>
             <h5 className="font-semibold">Notes:</h5>
@@ -105,47 +108,35 @@ const RecruitCard = ({ recruit, onArchive }) => {
   </>);
 }
 
-export function EnhancedWrestlingRecruitsBoard() {
-  const [recruits, setRecruits] = useState([])
+export function EnhancedWrestlingRecruitsBoard({initialRecruits}) {
+  const [recruits, setRecruits] = useState(initialRecruits ?? [])
   const [activeRecruit, setActiveRecruit] = useState(null)
-  const [isAddRecruitOpen, setIsAddRecruitOpen] = useState(false)
-  const [newRecruit, setNewRecruit] = useState({})
   const [filterStatus, setFilterStatus] = useState('All')
   const [sortBy, setSortBy] = useState('name')
-  const [user, setUser] = useState(null)
-  const [isLoginOpen, setIsLoginOpen] = useState(false)
-  const [loginEmail, setLoginEmail] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
-
-  useEffect(() => {
-    const storedRecruits = localStorage.getItem('recruits')
-    if (storedRecruits) {
-      setRecruits(JSON.parse(storedRecruits))
-    }
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
-    }
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem('recruits', JSON.stringify(recruits))
-  }, [recruits])
 
   const handleDragStart = (recruit) => {
-    const activeRecruit = recruits.find(r => r.id === recruit.active.id)
+    const activeRecruit = recruits.find(r => r.primaryKey === recruit.active.id)
     setActiveRecruit(activeRecruit);
     console.log('drag start', recruit)
   }
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = async (event) => {
     const { active, over } = event
 
-    if (!activeRecruit.id.includes(over.id)) {
+    if (!activeRecruit.status.includes(over.id)) {
       console.log('setting new recruits')
+      
+
+      const { error } = await supabase
+    .from('athletes')
+    .update({status: over.id})
+    .eq('primary_key', activeRecruit.primaryKey)
+
+    if (error) alert (error)
+
       setRecruits((recruits) => {
         
-        const updatedRecruits = [ ...recruits.filter(r => r.id !== activeRecruit.id), {...activeRecruit, status: over.id }]
+        const updatedRecruits = [...recruits.filter(r => r.primaryKey !== activeRecruit.primaryKey), {...activeRecruit, status: over.id }]
         console.log(updatedRecruits)
         return updatedRecruits
       })
@@ -154,45 +145,16 @@ export function EnhancedWrestlingRecruitsBoard() {
     setActiveRecruit(null)
   }
 
-  const handleAddRecruit = () => {
-    if (newRecruit.name && newRecruit.projectedWeight && newRecruit.priority) {
-      setRecruits([...recruits, {
-        ...newRecruit,
-        id: newRecruit.name,
-        status: 'Prospect'
-      }])
-      setIsAddRecruitOpen(false)
-      setNewRecruit({})
-    }
-  }
-
-  const handleLogin = () => {
-    // In a real application, you would validate credentials against a backend
-    if (loginEmail === 'admin@example.com' && loginPassword === 'password') {
-      const user = { email: loginEmail, password: loginPassword }
-      setUser(user)
-      localStorage.setItem('user', JSON.stringify(user))
-      setIsLoginOpen(false)
-    } else {
-      alert('Invalid credentials')
-    }
-  }
-
-  const handleLogout = () => {
-    setUser(null)
-    localStorage.removeItem('user')
-  }
-
-  const handleArchive = (id) => {
+  const handleArchive = (primaryKey) => {
     setRecruits(recruits.map(recruit => 
-      recruit.id === id ? { ...recruit, status: 'Archived' } : recruit))
+      recruit.primaryKey === primaryKey ? { ...recruit, status: 'archived' } : recruit))
   }
 
   const filteredRecruits = recruits
     .filter((recruit) => {
       if (filterStatus === 'All') return true
-      if (filterStatus === 'Active') return recruit.status !== 'Archived'
-      return recruit.status === 'Archived'
+      if (filterStatus === 'Active') return recruit.status !== 'archived'
+      return recruit.status === 'archived'
     })
     .sort((a, b) => {
       if (sortBy === 'name') return a.name?.localeCompare(b.name);
@@ -206,63 +168,13 @@ export function EnhancedWrestlingRecruitsBoard() {
 
     console.log(filteredRecruits)
 
-  const columns = ['Prospect', 'Contacted', 'Applied', 'Visited', 'Committed']
-
-  if (!user) {
-    return (
-      (<div className="flex items-center justify-center h-screen">
-        <Card className="w-96">
-          <CardContent className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Wrestling Recruits Board</h1>
-            <Button onClick={() => setIsLoginOpen(true)}>Login</Button>
-            <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Login</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="email" className="text-right">
-                      Email
-                    </Label>
-                    <Input
-                      id="email"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="password" className="text-right">
-                      Password
-                    </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="col-span-3" />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleLogin}>Login</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </Card>
-      </div>)
-    );
-  }
+  const columns = ['prospect', 'contacted', 'applied', 'visited', 'committed']
 
   return (
     (<DndContext onDragEnd={handleDragEnd} collisionDetection={closestCorners} onDragStart={handleDragStart}>
       <div className="p-4">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Wrestling Recruits Board</h1>
-          <div className="flex gap-2">
-            <Button onClick={() => setIsAddRecruitOpen(true)}>Add Recruit</Button>
-            <Button onClick={handleLogout}>Logout</Button>
-          </div>
         </div>
         <div className="flex gap-4 mb-4">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -304,7 +216,7 @@ export function EnhancedWrestlingRecruitsBoard() {
                   .filter((r) => r.status === 'Archived')
                   .map((recruit) => (
                     <RecruitCard
-                      key={recruit.id}
+                      key={recruit.primaryKey}
                       recruit={recruit}
                       onArchive={handleArchive} />
                   ))}
@@ -317,61 +229,12 @@ export function EnhancedWrestlingRecruitsBoard() {
             <Card className="w-64">
               <CardContent className="p-2">
                 <h4 className="font-semibold">{activeRecruit.name}</h4>
-                <p className="text-sm">Weight: {activeRecruit.projectedWeight}</p>
+                <p className="text-sm">Weight: {activeRecruit.projectedWeightClass}</p>
                 <p className="text-sm">Priority: {activeRecruit.priority}</p>
               </CardContent>
             </Card>
           ) : null}
         </DragOverlay>
-        <Dialog open={isAddRecruitOpen} onOpenChange={setIsAddRecruitOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Recruit</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="name"
-                  value={newRecruit.name || ''}
-                  onChange={(e) => setNewRecruit({ ...newRecruit, name: e.target.value })}
-                  className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="weight" className="text-right">
-                  Projected Weight
-                </Label>
-                <Input
-                  id="weight"
-                  value={newRecruit.projectedWeight || ''}
-                  onChange={(e) => setNewRecruit({ ...newRecruit, projectedWeight: e.target.value })}
-                  className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="priority" className="text-right">
-                  Priority
-                </Label>
-                <Select
-                  value={newRecruit.priority}
-                  onValueChange={(value) => setNewRecruit({ ...newRecruit, priority: value })}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleAddRecruit}>Add Recruit</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </DndContext>)
   );

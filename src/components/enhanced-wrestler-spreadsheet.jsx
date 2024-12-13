@@ -36,6 +36,261 @@ import {
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label' 
+import { createClient } from '@supabase/supabase-js';
+
+import { snakeCaseKeys } from '@/utils/strings'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
+
+
+// Who are you?
+// - name
+
+// Should we recruit you?
+// - school
+// - Classification
+// - Win percentage
+// - State placement
+// - record from each year
+// - Grade
+// - Big tournament placement
+
+// How do we value you as a recruit?
+// - Technique
+// - Hungry?
+
+// How do we contact you?
+// - Coach name
+// - Coach email
+// - Coach phone #
+// - Personal phone #
+// - Parent phone #
+
+// Do you fit in the lineup?
+// - projected weight
+
+const RecruitForm = ({open, onOpenChange, activeProspect = {}, onSubmit}) => {
+  const [newData, setNewData] = React.useState({})
+
+  const handleAddRecruit = async () => {
+
+    const prospect = snakeCaseKeys({...activeProspect, ...newData, status: 'prospect'});
+    const { error } = await supabase
+    .from('athletes')
+    .update(prospect)
+    .eq('primary_key', prospect.primary_key)
+  
+    onSubmit(prospect)
+  }
+
+  return (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>{activeProspect.name} ({activeProspect.weightClass})</DialogTitle>
+    </DialogHeader>
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="projectedWeightClass" className="text-right">
+          Projected Weight Class
+        </Label>
+          <Select
+          id="projectedWeightClass"
+          value={newData.projectedWeightClass || ''}
+          onValueChange={(e) => setNewData({ ...newData, projectedWeightClass: e })}
+          >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select Weight Class" />
+          </SelectTrigger>
+          <SelectContent>
+            {['125', '133', '141', '149', '157', '165', '174', '184', '197', '285']
+              .map((weightClass) => (
+                <SelectItem key={weightClass} value={weightClass}>
+                  {weightClass}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="priority" className="text-right">
+          Priority
+        </Label>
+          <Select
+          id="priority"
+          value={newData.priority || ''}
+          onValueChange={(e) => setNewData({ ...newData, priority: e })}
+          >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            {['high', 'medium', 'low']
+              .map((priority) => (
+                <SelectItem key={priority} value={priority}>
+                  {priority}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="notes" className="text-right">
+         Notes
+        </Label>
+        <Input
+          id="notes"
+          value={newData.notes || ''}
+          onChange={(e) => setNewData({ ...newData, notes: e.target.value })}
+          className="col-span-3" />
+      </div>
+    </div>
+
+    <DialogFooter>
+      <Button onClick={() => handleAddRecruit(activeProspect)}>Add as Recruit</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+)
+}
+
+
+const ProspectForm = ({open, onOpenChange, activeProspect = {}, onSubmit, setActiveProspect}) => {
+
+  const handleAddProspect = async (prospect) => {
+    const snakeCasedObjectKeys = snakeCaseKeys(prospect);
+    const { error } = await supabase
+    .from('athletes')
+    .insert(snakeCasedObjectKeys)
+  
+    onSubmit(prospect)
+  }
+
+  const handleEditProspect = async (prospect) => {
+    const snakeCasedObjectKeys = snakeCaseKeys(prospect);
+
+    delete snakeCasedObjectKeys.win_percentage
+    console.log(snakeCasedObjectKeys)
+    const { error } = await supabase
+    .from('athletes')
+    .update(snakeCasedObjectKeys)
+    .eq('primary_key', prospect.primaryKey)
+
+    onSubmit(prospect)
+  }
+
+  return (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>{activeProspect.primaryKey ? "Edit Prospect": "Add New Recruit"}</DialogTitle>
+    </DialogHeader>
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="name" className="text-right">
+          Name
+        </Label>
+        <Input
+          id="name"
+          value={activeProspect.name || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, name: e.target.value })}
+          className="col-span-3" />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="highSchool" className="text-right">
+         High School
+        </Label>
+        <Input
+          id="highSchool"
+          value={activeProspect.highSchool || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, highSchool: e.target.value })}
+          className="col-span-3" />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="state" className="text-right">
+         State
+        </Label>
+        <Input
+          id="state"
+          value={activeProspect.state || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, state: e.target.value })}
+          className="col-span-3" />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="wins" className="text-right">
+         Wins
+        </Label>
+        <Input
+          id="wins"
+          value={activeProspect.wins || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, wins: e.target.value })}
+          className="col-span-3" 
+          type="number"
+          step={1}
+          />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="losses" className="text-right">
+         Losses
+        </Label>
+        <Input
+          id="losses"
+          value={activeProspect.losses || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, losses: e.target.value })}
+          className="col-span-3" 
+          type="number"
+          step={1}
+          />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="previousYearsStatePlacement" className="text-right">
+         Previous Year&apos;s State Placement
+        </Label>
+        <Input
+          id="previousYearsStatePlacement"
+          value={activeProspect.previousYearsStatePlacement || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, previousYearsStatePlacement: e.target.value })}
+          className="col-span-3" 
+          type="number"
+          step={1}
+          />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="weightClass" className="text-right">
+         Weight Class
+        </Label>
+        <Input
+          id="weightClass"
+          value={activeProspect.weightClass || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, weightClass: e.target.value })}
+          className="col-span-3" />
+      </div>
+        <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="notes" className="text-right">
+         Notes
+        </Label>
+        <Input
+          id="notes"
+          value={activeProspect.notes || ''}
+          onChange={(e) => setActiveProspect({ ...activeProspect, notes: e.target.value })}
+          className="col-span-3" 
+          type="number"
+          step={1}
+          />
+      </div>
+      </div>
+    <DialogFooter>
+      <Button onClick={() => activeProspect.primaryKey ? handleEditProspect(activeProspect) : handleAddProspect(activeProspect)}>{activeProspect.primaryKey ? "Edit Prospect" : "Update Recruit"}</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+  )
+}
 
 export function EnhancedWrestlerSpreadsheetComponent({athletes}) {
   const [sorting, setSorting] = React.useState([])
@@ -46,9 +301,25 @@ export function EnhancedWrestlerSpreadsheetComponent({athletes}) {
 
   const [tableData, setTableData] = React.useState(athletes);
   const [addingProspect, setAddingProspect] = React.useState(false);
-  const [newProspect, setNewProspect] = React.useState({})
+  const [editingProspect, setEditingProspect] = React.useState(false);
+  const [activeProspect, setActiveProspect] = React.useState({});
+  const [showRecruitModal, setShowRecruitModal] = React.useState(false);
 
+  const handleEditClick = (row) => {
+    setActiveProspect(row.original); 
+    setEditingProspect(true)
+  }
 
+  const handleAddRecruitClick = (row) => {
+    // update the status property on athletes table to "prospect"
+
+    // show a modal that has properties that prospects don't have but recruits do:
+    // visit date
+    // priority
+    // projected weight
+    setActiveProspect(row.original)
+    setShowRecruitModal(true);
+  }
 
   const columns = [
     {
@@ -183,8 +454,34 @@ export function EnhancedWrestlerSpreadsheetComponent({athletes}) {
           </Button>)
         );
       },
-      cell: ({ row }) => <div>{row.getValue('winPercentage').toFixed(2)}%</div>,
-    },
+      cell: ({ row }) => <div>{(((row.getValue('wins') / ((row.getValue('losses') + row.getValue('wins'))))) * 100).toFixed(2)}%</div>,
+    }, 
+    {
+      accessorKey: 'edit',
+      header: ({ column }) => {
+        return (
+          (<Button
+            variant="ghost">Edit
+          </Button>)
+        );
+      },
+      cell: ({ row }) => <div><Button onClick={() => handleEditClick(row)}>Edit</Button></div>,
+      enableSorting: false,
+      enableColumnFilter: false,
+    }, 
+    {
+      accessorKey: 'addAsRecruit',
+      header: ({ column }) => {
+        return (
+          (<Button
+            variant="ghost">Add as Recruit
+          </Button>)
+        );
+      },
+      cell: ({ row }) => <div><Button onClick={() => handleAddRecruitClick(row)}>Add as Recruit</Button></div>,
+      enableSorting: false,
+      enableColumnFilter: false,
+    }, 
   ]
 
   const table = useReactTable({
@@ -204,14 +501,23 @@ export function EnhancedWrestlerSpreadsheetComponent({athletes}) {
       columnVisibility,
       rowSelection,
     },
+    pagination: false
   })
 
-  const handleAddProspectClick = () => {
-    setAddingProspect(true)
+  const handleAddProspect = (newProspect) => {
+    setTableData((prev) => [...prev, newProspect]); 
+    setAddingProspect(false);
   }
 
-  const handleAddProspect = () => {
-    console.log('added')
+  const handleEditProspect = (updatedProspect) => {
+    setTableData((prev) => [...prev.filter(i => i.primaryKey !== updatedProspect.primaryKey), updatedProspect]); 
+    setEditingProspect(false);
+    setActiveProspect({})
+  }
+
+  const handleAddProspectClick = () => {
+    setActiveProspect({});
+    setAddingProspect(true)
   }
 
   return (
@@ -328,110 +634,9 @@ export function EnhancedWrestlerSpreadsheetComponent({athletes}) {
           </Button>
         </div>
       </div>
-      <Dialog open={addingProspect} onOpenChange={setAddingProspect}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Recruit</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
-                </Label>
-                <Input
-                  id="name"
-                  value={newProspect.name || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, name: e.target.value })}
-                  className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="highSchool" className="text-right">
-                 High School
-                </Label>
-                <Input
-                  id="highSchool"
-                  value={newProspect.highSchool || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, highSchool: e.target.value })}
-                  className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="state" className="text-right">
-                 State
-                </Label>
-                <Input
-                  id="state"
-                  value={newProspect.state || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, state: e.target.value })}
-                  className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="wins" className="text-right">
-                 Wins
-                </Label>
-                <Input
-                  id="wins"
-                  value={newProspect.wins || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, wins: e.target.value })}
-                  className="col-span-3" 
-                  type="number"
-                  step={1}
-                  />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="losses" className="text-right">
-                 Losses
-                </Label>
-                <Input
-                  id="losses"
-                  value={newProspect.losses || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, losses: e.target.value })}
-                  className="col-span-3" 
-                  type="number"
-                  step={1}
-                  />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="placement" className="text-right">
-                 Previous Year&apos;s State Placement
-                </Label>
-                <Input
-                  id="placement"
-                  value={newProspect.placement || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, placement: e.target.value })}
-                  className="col-span-3" 
-                  type="number"
-                  step={1}
-                  />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="weight" className="text-right">
-                 Weight
-                </Label>
-                <Input
-                  id="weight"
-                  value={newProspect.weight || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, weight: e.target.value })}
-                  className="col-span-3" />
-              </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="notes" className="text-right">
-                 Notes
-                </Label>
-                <Input
-                  id="notes"
-                  value={newProspect.notes || ''}
-                  onChange={(e) => setNewProspect({ ...newProspect, notes: e.target.value })}
-                  className="col-span-3" 
-                  type="number"
-                  step={1}
-                  />
-              </div>
-              </div>
-            <DialogFooter>
-              <Button onClick={handleAddProspect}>Add Recruit</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      <ProspectForm open={addingProspect} onOpenChange={setAddingProspect} activeProspect={activeProspect} setActiveProspect={setActiveProspect} onSubmit={handleAddProspect}/>
+      <ProspectForm open={editingProspect} onOpenChange={setEditingProspect} activeProspect={activeProspect} setActiveProspect={setActiveProspect} onSubmit={handleEditProspect}/>
+      <RecruitForm open={showRecruitModal} onOpenChange={setShowRecruitModal} activeProspect={activeProspect} onSubmit={() => {}}/>
     </div>)
   );
 }
